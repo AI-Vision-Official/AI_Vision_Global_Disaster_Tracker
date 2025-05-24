@@ -1,19 +1,85 @@
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Sphere, Text } from '@react-three/drei';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, MapPin } from 'lucide-react';
+import * as THREE from 'three';
 
 interface DisasterGlobeProps {
   selectedDisaster: string | null;
 }
 
+// Globe component
+function Globe() {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame(() => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.002;
+    }
+  });
+
+  return (
+    <Sphere ref={meshRef} args={[2, 64, 64]}>
+      <meshStandardMaterial
+        color="#1e40af"
+        roughness={0.8}
+        metalness={0.1}
+      />
+    </Sphere>
+  );
+}
+
+// Disaster marker component
+function DisasterMarker({ position, type, onClick }: { 
+  position: [number, number, number], 
+  type: string, 
+  onClick: () => void 
+}) {
+  const meshRef = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      const time = state.clock.getElapsedTime();
+      meshRef.current.scale.setScalar(1 + Math.sin(time * 3) * 0.1);
+    }
+  });
+
+  const getColor = (type: string) => {
+    switch (type) {
+      case 'earthquake': return '#f97316';
+      case 'storm': return '#3b82f6';
+      case 'wildfire': return '#ef4444';
+      case 'flood': return '#06b6d4';
+      case 'volcano': return '#a855f7';
+      default: return '#ffffff';
+    }
+  };
+
+  return (
+    <mesh ref={meshRef} position={position} onClick={onClick}>
+      <sphereGeometry args={[0.05, 16, 16]} />
+      <meshBasicMaterial color={getColor(type)} />
+    </mesh>
+  );
+}
+
 const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [rotation, setRotation] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+
+  // Convert lat/lng to 3D coordinates on sphere
+  const latLngToVector3 = (lat: number, lng: number, radius: number = 2.02) => {
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lng + 180) * (Math.PI / 180);
+    
+    const x = -(radius * Math.sin(phi) * Math.cos(theta));
+    const z = radius * Math.sin(phi) * Math.sin(theta);
+    const y = radius * Math.cos(phi);
+    
+    return [x, y, z] as [number, number, number];
+  };
 
   // Mock disaster data with coordinates
   const disasters = [
@@ -28,196 +94,32 @@ const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
     ? disasters.filter(d => d.type === selectedDisaster)
     : disasters;
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const drawGlobe = () => {
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-      const radius = Math.min(centerX, centerY) - 20;
-
-      // Clear canvas
-      ctx.fillStyle = '#0f172a';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Draw ocean
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = '#1e40af';
-      ctx.fill();
-
-      // Draw continents (simplified)
-      ctx.fillStyle = '#16a34a';
-      ctx.beginPath();
-      // North America
-      ctx.ellipse(centerX - 80, centerY - 30, 40, 60, rotation.y * 0.01, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Europe/Africa
-      ctx.beginPath();
-      ctx.ellipse(centerX + 20, centerY - 10, 30, 80, rotation.y * 0.01, 0, 2 * Math.PI);
-      ctx.fill();
-
-      // Asia
-      ctx.beginPath();
-      ctx.ellipse(centerX + 80, centerY - 20, 50, 70, rotation.y * 0.01, 0, 2 * Math.PI);
-      ctx.fill();
-
-      // Draw disaster markers
-      filteredDisasters.forEach((disaster, index) => {
-        const x = centerX + (disaster.lng * 2) + rotation.y * 0.5;
-        const y = centerY - (disaster.lat * 2) + rotation.x * 0.3;
-        
-        if (Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2) <= Math.pow(radius, 2)) {
-          ctx.beginPath();
-          ctx.arc(x, y, 8, 0, 2 * Math.PI);
-          
-          switch (disaster.type) {
-            case 'earthquake':
-              ctx.fillStyle = '#f97316';
-              break;
-            case 'storm':
-              ctx.fillStyle = '#3b82f6';
-              break;
-            case 'wildfire':
-              ctx.fillStyle = '#ef4444';
-              break;
-            case 'flood':
-              ctx.fillStyle = '#06b6d4';
-              break;
-            case 'volcano':
-              ctx.fillStyle = '#a855f7';
-              break;
-            default:
-              ctx.fillStyle = '#ffffff';
-          }
-          
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-
-          // Pulsing effect
-          ctx.beginPath();
-          ctx.arc(x, y, 8 + Math.sin(Date.now() * 0.005 + index) * 4, 0, 2 * Math.PI);
-          ctx.strokeStyle = ctx.fillStyle;
-          ctx.lineWidth = 1;
-          ctx.globalAlpha = 0.5;
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-        }
-      });
-
-      // Draw grid lines
-      ctx.strokeStyle = '#1e40af';
-      ctx.lineWidth = 0.5;
-      ctx.globalAlpha = 0.3;
-      
-      // Latitude lines
-      for (let i = -60; i <= 60; i += 20) {
-        ctx.beginPath();
-        const y = centerY - i * 2;
-        ctx.arc(centerX, centerY, Math.abs(y - centerY), 0, 2 * Math.PI);
-        ctx.stroke();
-      }
-      
-      // Longitude lines
-      for (let i = -180; i <= 180; i += 30) {
-        ctx.beginPath();
-        ctx.moveTo(centerX, centerY - radius);
-        ctx.lineTo(centerX, centerY + radius);
-        ctx.stroke();
-      }
-      
-      ctx.globalAlpha = 1;
-    };
-
-    const resizeCanvas = () => {
-      const rect = canvas.parentElement?.getBoundingClientRect();
-      if (rect) {
-        canvas.width = rect.width;
-        canvas.height = rect.height;
-        drawGlobe();
-      }
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    const animationFrame = requestAnimationFrame(function animate() {
-      if (!isDragging) {
-        setRotation(prev => ({ ...prev, y: prev.y + 0.5 }));
-      }
-      drawGlobe();
-      requestAnimationFrame(animate);
-    });
-
-    return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      cancelAnimationFrame(animationFrame);
-    };
-  }, [rotation, isDragging, selectedDisaster, filteredDisasters]);
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    
-    const deltaX = e.clientX - lastMousePos.x;
-    const deltaY = e.clientY - lastMousePos.y;
-    
-    setRotation(prev => ({
-      x: prev.x + deltaY * 0.5,
-      y: prev.y + deltaX * 0.5
-    }));
-    
-    setLastMousePos({ x: e.clientX, y: e.clientY });
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleCanvasClick = (e: React.MouseEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-
-    // Check if click is near any disaster marker
-    filteredDisasters.forEach((disaster) => {
-      const markerX = centerX + (disaster.lng * 2) + rotation.y * 0.5;
-      const markerY = centerY - (disaster.lat * 2) + rotation.x * 0.3;
-      
-      const distance = Math.sqrt(Math.pow(x - markerX, 2) + Math.pow(y - markerY, 2));
-      if (distance <= 15) {
-        setSelectedEvent(disaster);
-      }
-    });
-  };
-
   return (
-    <div className="relative h-full">
-      <canvas
-        ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onClick={handleCanvasClick}
-      />
+    <div className="relative h-full bg-slate-900">
+      <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[10, 10, 5]} intensity={1} />
+        
+        <Globe />
+        
+        {filteredDisasters.map((disaster) => (
+          <DisasterMarker
+            key={disaster.id}
+            position={latLngToVector3(disaster.lat, disaster.lng)}
+            type={disaster.type}
+            onClick={() => setSelectedEvent(disaster)}
+          />
+        ))}
+        
+        <OrbitControls
+          enableZoom={true}
+          enablePan={false}
+          enableRotate={true}
+          autoRotate={false}
+          minDistance={3}
+          maxDistance={8}
+        />
+      </Canvas>
       
       <div className="absolute top-4 left-4 text-white">
         <div className="flex items-center space-x-2 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3">
@@ -229,7 +131,7 @@ const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
       </div>
 
       <div className="absolute bottom-4 left-4 text-white text-xs bg-slate-800/80 backdrop-blur-sm rounded-lg p-2">
-        Click and drag to rotate • Scroll to zoom
+        Click and drag to rotate • Scroll to zoom • Click markers for details
       </div>
 
       {selectedEvent && (
