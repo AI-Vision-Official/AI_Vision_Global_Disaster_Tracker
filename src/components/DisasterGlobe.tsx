@@ -10,6 +10,20 @@ interface DisasterGlobeProps {
   selectedDisaster: string | null;
 }
 
+interface DisasterData {
+  id: number;
+  type: string;
+  magnitude?: number;
+  intensity?: string;
+  severity?: string;
+  level?: string;
+  alert?: string;
+  location: string;
+  lat: number;
+  lng: number;
+  time: string;
+}
+
 // Globe component
 function Globe() {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -32,10 +46,14 @@ function Globe() {
 }
 
 // Disaster marker component
-function DisasterMarker({ position, type, onClick }: { 
-  position: [number, number, number], 
-  type: string, 
-  onClick: () => void 
+function DisasterMarker({ 
+  position, 
+  type, 
+  onClick 
+}: { 
+  position: [number, number, number];
+  type: string;
+  onClick: () => void;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   
@@ -46,7 +64,7 @@ function DisasterMarker({ position, type, onClick }: {
     }
   });
 
-  const getColor = (type: string) => {
+  const getColor = (type: string): string => {
     switch (type) {
       case 'earthquake': return '#f97316';
       case 'storm': return '#3b82f6';
@@ -66,10 +84,10 @@ function DisasterMarker({ position, type, onClick }: {
 }
 
 const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<DisasterData | null>(null);
 
   // Convert lat/lng to 3D coordinates on sphere
-  const latLngToVector3 = (lat: number, lng: number, radius: number = 2.02) => {
+  const latLngToVector3 = (lat: number, lng: number, radius: number = 2.02): [number, number, number] => {
     const phi = (90 - lat) * (Math.PI / 180);
     const theta = (lng + 180) * (Math.PI / 180);
     
@@ -77,11 +95,11 @@ const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
     const z = radius * Math.sin(phi) * Math.sin(theta);
     const y = radius * Math.cos(phi);
     
-    return [x, y, z] as [number, number, number];
+    return [x, y, z];
   };
 
   // Mock disaster data with coordinates
-  const disasters = [
+  const disasters: DisasterData[] = [
     { id: 1, type: 'earthquake', magnitude: 6.2, location: 'Japan', lat: 35.6762, lng: 139.6503, time: '2 hours ago' },
     { id: 2, type: 'storm', intensity: 'Category 3', location: 'Florida, USA', lat: 27.7663, lng: -82.6404, time: '4 hours ago' },
     { id: 3, type: 'wildfire', severity: 'High', location: 'California, USA', lat: 36.7783, lng: -119.4179, time: '6 hours ago' },
