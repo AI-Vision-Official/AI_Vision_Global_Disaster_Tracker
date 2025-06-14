@@ -1,5 +1,5 @@
 
-import { useRef, useState } from 'react';
+import { useRef, useState, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere } from '@react-three/drei';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,7 +58,7 @@ function DisasterMarker({
   const meshRef = useRef<THREE.Mesh>(null);
   
   useFrame((state) => {
-    if (meshRef.current) {
+    if (meshRef.current && state?.clock) {
       const time = state.clock.getElapsedTime();
       meshRef.current.scale.setScalar(1 + Math.sin(time * 3) * 0.1);
     }
@@ -83,8 +83,31 @@ function DisasterMarker({
   );
 }
 
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-white">Loading 3D Globe...</div>
+    </div>
+  );
+}
+
+// Error boundary component
+function ErrorFallback() {
+  return (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-white">
+        <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+        <p>Unable to load 3D visualization</p>
+        <p className="text-sm text-slate-400">Please try refreshing the page</p>
+      </div>
+    </div>
+  );
+}
+
 const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
   const [selectedEvent, setSelectedEvent] = useState<DisasterData | null>(null);
+  const [hasError, setHasError] = useState(false);
 
   // Convert lat/lng to 3D coordinates on sphere
   const latLngToVector3 = (lat: number, lng: number, radius: number = 2.02): [number, number, number] => {
@@ -111,32 +134,55 @@ const DisasterGlobe = ({ selectedDisaster }: DisasterGlobeProps) => {
     ? disasters.filter(d => d.type === selectedDisaster)
     : disasters;
 
+  const handleCanvasError = () => {
+    console.error('WebGL context error detected');
+    setHasError(true);
+  };
+
+  if (hasError) {
+    return (
+      <div className="relative h-full bg-slate-900">
+        <ErrorFallback />
+      </div>
+    );
+  }
+
   return (
     <div className="relative h-full bg-slate-900">
-      <Canvas camera={{ position: [0, 0, 5], fov: 75 }}>
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[10, 10, 5]} intensity={1} />
-        
-        <Globe />
-        
-        {filteredDisasters.map((disaster) => (
-          <DisasterMarker
-            key={disaster.id}
-            position={latLngToVector3(disaster.lat, disaster.lng)}
-            type={disaster.type}
-            onClick={() => setSelectedEvent(disaster)}
+      <Suspense fallback={<LoadingFallback />}>
+        <Canvas 
+          camera={{ position: [0, 0, 5], fov: 75 }}
+          onError={handleCanvasError}
+          gl={{ 
+            antialias: true,
+            alpha: false,
+            preserveDrawingBuffer: false
+          }}
+        >
+          <ambientLight intensity={0.4} />
+          <directionalLight position={[10, 10, 5]} intensity={1} />
+          
+          <Globe />
+          
+          {filteredDisasters.map((disaster) => (
+            <DisasterMarker
+              key={disaster.id}
+              position={latLngToVector3(disaster.lat, disaster.lng)}
+              type={disaster.type}
+              onClick={() => setSelectedEvent(disaster)}
+            />
+          ))}
+          
+          <OrbitControls
+            enableZoom={true}
+            enablePan={false}
+            enableRotate={true}
+            autoRotate={false}
+            minDistance={3}
+            maxDistance={8}
           />
-        ))}
-        
-        <OrbitControls
-          enableZoom={true}
-          enablePan={false}
-          enableRotate={true}
-          autoRotate={false}
-          minDistance={3}
-          maxDistance={8}
-        />
-      </Canvas>
+        </Canvas>
+      </Suspense>
       
       <div className="absolute top-4 left-4 text-white">
         <div className="flex items-center space-x-2 bg-slate-800/80 backdrop-blur-sm rounded-lg p-3">
