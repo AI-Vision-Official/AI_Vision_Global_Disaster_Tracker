@@ -4,7 +4,7 @@ import { Globe, Map, AlertTriangle, Zap, Flame, Waves, Mountain } from 'lucide-r
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import DisasterGlobe from '@/components/DisasterGlobe';
+import DisasterGlobeSimple from '@/components/DisasterGlobeSimple';
 import DisasterMap from '@/components/DisasterMap';
 import DisasterStats from '@/components/DisasterStats';
 import DisasterFeed from '@/components/DisasterFeed';
@@ -106,7 +106,7 @@ const Index = () => {
             <Card className="bg-slate-800/50 border-slate-700 h-[600px]">
               <CardContent className="p-0 h-full">
                 {viewMode === 'globe' ? (
-                  <DisasterGlobe selectedDisaster={selectedDisaster} />
+                  <DisasterGlobeSimple selectedDisaster={selectedDisaster} />
                 ) : (
                   <DisasterMap selectedDisaster={selectedDisaster} />
                 )}
